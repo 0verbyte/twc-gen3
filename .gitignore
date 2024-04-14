@@ -1,0 +1,6 @@
+# MacOS system files
+.DS_Store
+
+# App binaries
+twc-gen3
+*.db
