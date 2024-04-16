@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"embed"
+	"os"
 	"strings"
 	"time"
 
@@ -21,33 +22,51 @@ type APIv1 struct {
 }
 
 func NewAPIv1() (*APIv1, error) {
-	dbConn, err := sql.Open("sqlite3", "./twc_gen3.db")
+	db, err := sql.Open("sqlite3", "./twc_gen3.db")
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = dbConn.Exec("create table if not exists twc (ip text primary key)")
+	_, err = db.Exec("create table if not exists twc (ip text primary key)")
 	if err != nil {
 		return nil, err
 	}
 
-	row := dbConn.QueryRow("SELECT ip from twc")
+	row := db.QueryRow("SELECT ip from twc")
 	var ip string
 	if err := row.Scan(&ip); err == nil && len(ip) > 0 {
 		twc, err := twc.New(ip)
-		if err != nil {
-			log.WithError(err).Warn("Failed to create TWC from ip ", ip)
-		} else {
-			log.Infof("Using cached TWC at %s", twc.IP())
+		if err == nil {
+			log.Debugf("Using wall connector from storage db %s", twc.IP())
 			return &APIv1{
-				storage: dbConn,
 				twc:     twc,
+				storage: db,
 			}, nil
 		}
+		log.WithError(err).Warnf("Failed to load twc %s", ip)
+	}
+
+	ip = os.Getenv("TWC_IP")
+	if ip != "" {
+		twc, err := twc.New(ip)
+		if err == nil {
+			log.Debugf("Using wall connector from TWC_IP=%s env var", twc.IP())
+			return &APIv1{
+				twc:     twc,
+				storage: db,
+			}, nil
+		}
+		log.WithError(err).Warnf("Failed to use TWC_IP=%s", ip)
+	}
+
+	twc, err := twc.Find()
+	if err != nil {
+		log.WithError(err).Fatalln("Failed to find twc on network")
 	}
 
 	return &APIv1{
-		storage: dbConn,
+		twc:     twc,
+		storage: db,
 	}, nil
 }
 
