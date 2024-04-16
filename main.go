@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"embed"
 	"os"
 	"strings"
@@ -13,40 +12,40 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/0verbyte/twc-gen3/internal/storage"
 	"github.com/0verbyte/twc-gen3/pkg/twc"
 )
 
 type APIv1 struct {
 	twc     *twc.TWC
-	storage *sql.DB
+	storage *storage.DB
 }
 
 func NewAPIv1() (*APIv1, error) {
-	db, err := sql.Open("sqlite3", "./twc_gen3.db")
+	db, err := storage.New()
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.Exec("create table if not exists twc (ip text primary key)")
-	if err != nil {
-		return nil, err
+	if err := db.CreateTables(); err != nil {
+		log.WithError(err).Fatal("Failed to create database tables")
 	}
 
-	row := db.QueryRow("SELECT ip from twc")
-	var ip string
-	if err := row.Scan(&ip); err == nil && len(ip) > 0 {
+	if ip, err := db.GetTWCIP(); err == nil {
 		twc, err := twc.New(ip)
 		if err == nil {
-			log.Debugf("Using wall connector from storage db %s", twc.IP())
 			return &APIv1{
 				twc:     twc,
 				storage: db,
 			}, nil
+		} else {
+			log.WithError(err).Warnf("Failed to create twc %s", ip)
 		}
-		log.WithError(err).Warnf("Failed to load twc %s", ip)
+	} else {
+		log.WithError(err).Warn("Failed to lookup TWC in storage")
 	}
 
-	ip = os.Getenv("TWC_IP")
+	ip := os.Getenv("TWC_IP")
 	if ip != "" {
 		twc, err := twc.New(ip)
 		if err == nil {
@@ -62,6 +61,10 @@ func NewAPIv1() (*APIv1, error) {
 	twc, err := twc.Find()
 	if err != nil {
 		log.WithError(err).Fatalln("Failed to find twc on network")
+	}
+
+	if err := db.SaveTWCIP(twc.IP()); err != nil {
+		log.WithError(err).Error("Failed to save twc ip to database")
 	}
 
 	return &APIv1{
@@ -137,12 +140,8 @@ func (api *APIv1) Find(c fiber.Ctx) error {
 
 	api.twc = twc
 
-	tx, err := api.storage.Prepare("INSERT into twc (ip) values(?)")
-	if err != nil {
-		log.WithError(err).Error("Failed to prepare twc ip database statement")
-	}
-	if _, err := tx.Exec(twc.IP()); err != nil {
-		log.WithError(err).Error("Failed to execute twc ip database statement")
+	if err := api.storage.SaveTWCIP(twc.IP()); err != nil {
+		log.WithError(err).Warn("Failed to save twc to storage")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(map[string]string{
