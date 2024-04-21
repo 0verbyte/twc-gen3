@@ -1,7 +1,7 @@
 package twc
 
-// Vitals structure that represents the vitals from the TWC
-type Vitals struct {
+// Vital structure that represents the vitals from the TWC
+type Vital struct {
 	ContactorClosed    bool     `json:"contactor_closed"`
 	VehicleConnected   bool     `json:"vehicle_connected"`
 	Session            int      `json:"session_s"`
@@ -54,4 +54,10 @@ type LifetimeStats struct {
 	ConnectorCycles       int     `json:"connector_cycles"`
 	Uptime                int     `json:"uptime_s"`
 	ChargingTime          int     `json:"charging_time_s"`
+}
+
+// VitalQueryResponse structure that is used when returning vital stats view REST API
+type VitalQueryResponse struct {
+	Timestamp string `json:"timestamp"`
+	Vital     *Vital `json:"vital"`
 }

@@ -1,0 +1,146 @@
+import React, { useEffect, useState } from "react";
+
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import Box from "@mui/material/Box";
+import InputLabel from "@mui/material/InputLabel";
+
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+
+import API from "../api/twc.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+const options = {
+  responsive: true,
+  plugins: {
+    legend: {
+      position: "bottom",
+    },
+    title: {
+      display: true,
+      text: "Charge Data",
+    },
+  },
+};
+
+const defaultVital = "vehicle_current_a";
+
+const vitalKeyValueMap = {
+  grid_v: "Grid Voltage",
+  vehicle_current_a: "Vehicle Current AMP",
+  currentA_a: "Current A",
+  currentB_a: "Current B",
+  currentC_a: "Current C",
+  currentN_a: "Current N",
+  voltageA_v: "Voltage A",
+  voltageB_v: "Voltage B",
+  voltageC_v: "Voltage C",
+  relay_coil_v: "Relay Coil Volts",
+  pcba_temp_c: "PCBA Temp (C)",
+  handle_temp_c: "Handle Temp (C)",
+  mcu_temp_c: "MCU Temp (C)",
+  uptime_s: "Uptime seconds",
+  input_thermopile_uv: "Input Thermopile",
+  prox_v: "Prox",
+  pilot_high_v: "Pilot High Volts",
+  pilot_low_v: "Pilot Low Volts",
+  session_energy_wh: "Session Energy",
+  config_status: "Config Status",
+  evse_state: "Evse State",
+};
+
+function VitalsChart() {
+  let [vitalField, setVitalField] = useState(defaultVital);
+
+  let [chartData, setChartData] = useState({ labels: [], datasets: [] });
+  let [dataset, setDataset] = useState([]);
+
+  useEffect(() => {
+    API.query().then((data) => {
+      let labels = data.map((data) => {
+        return data.timestamp;
+      });
+
+      setDataset(data);
+      setChartData({
+        labels: labels,
+        datasets: [
+          {
+            label: "Vehicle Current AMP",
+            data: data.map((d) => d.vital.vehicle_current_a),
+            borderColor: "#00cd5e",
+            backgroundColor: "#00cd5e",
+          },
+        ],
+      });
+    });
+  }, []);
+
+  const renderVitalMenuItems = Object.keys(vitalKeyValueMap).map(
+    (val, index) => {
+      return (
+        <MenuItem key={index} value={val}>
+          {vitalKeyValueMap[val]}
+        </MenuItem>
+      );
+    }
+  );
+
+  const handleVitalFieldChange = (event) => {
+    let vitalValue = event.target.value;
+    setVitalField(vitalValue);
+    setChartData({
+      labels: chartData.labels,
+      datasets: [
+        {
+          label: vitalKeyValueMap[vitalValue],
+          data: dataset.map((d) => d.vital[vitalValue]),
+          borderColor: "#00cd5e",
+          backgroundColor: "#00cd5e",
+        },
+      ],
+    });
+  };
+
+  return (
+    <div>
+      <Box sx={{ minWidth: 120, maxWidth: 240 }}>
+        <FormControl fullWidth>
+          <InputLabel id="vital">Vital Field</InputLabel>
+          <Select
+            labelId="vital"
+            id="vital"
+            value={vitalField}
+            label={vitalKeyValueMap[defaultVital]}
+            onChange={handleVitalFieldChange}
+          >
+            {renderVitalMenuItems}
+          </Select>
+        </FormControl>
+      </Box>
+      <Line options={options} data={chartData} />
+    </div>
+  );
+}
+
+export default VitalsChart;

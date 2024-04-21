@@ -22,54 +22,62 @@ type APIv1 struct {
 }
 
 func NewAPIv1() (*APIv1, error) {
-	db, err := storage.New()
+	storage, err := storage.New()
 	if err != nil {
 		return nil, err
 	}
 
-	if err := db.CreateTables(); err != nil {
-		log.WithError(err).Fatal("Failed to create database tables")
+	if err := storage.Init(); err != nil {
+		log.WithError(err).Fatal("Failed to init storage")
 	}
 
-	if ip, err := db.GetTWCIP(); err == nil {
+	if ip, err := storage.GetTWCIP(); err == nil {
 		twc, err := twc.New(ip)
 		if err == nil {
 			return &APIv1{
 				twc:     twc,
-				storage: db,
+				storage: storage,
 			}, nil
-		} else {
-			log.WithError(err).Warnf("Failed to create twc %s", ip)
 		}
+		log.WithError(err).Warnf("Failed to create TWC from %s found in storage", ip)
 	} else {
-		log.WithError(err).Warn("Failed to lookup TWC in storage")
+		log.Debug("No record in storage for TWC")
 	}
 
 	ip := os.Getenv("TWC_IP")
 	if ip != "" {
 		twc, err := twc.New(ip)
 		if err == nil {
-			log.Debugf("Using wall connector from TWC_IP=%s env var", twc.IP())
-			return &APIv1{
-				twc:     twc,
-				storage: db,
-			}, nil
+			if _, err := twc.GetVitals(); err == nil {
+				if err := storage.SaveTWCIP(twc.IP()); err != nil {
+					log.WithError(err).Warnf("Failed to save TWC (%s) to storage", twc.IP())
+				}
+
+				return &APIv1{
+					twc:     twc,
+					storage: storage,
+				}, nil
+			} else {
+				log.WithError(err).Warnf("TWC get vitals failed for %s", twc.IP())
+			}
 		}
-		log.WithError(err).Warnf("Failed to use TWC_IP=%s", ip)
+		log.WithError(err).Warnf("Failed to create TWC from %s found in TWC_IP environment variable", ip)
+	} else {
+		log.Debug("TWC_IP environment variable is not set or is empty")
 	}
 
 	twc, err := twc.Find()
 	if err != nil {
-		log.WithError(err).Fatalln("Failed to find twc on network")
+		log.WithError(err).Fatalln("Failed to find TWC")
 	}
 
-	if err := db.SaveTWCIP(twc.IP()); err != nil {
-		log.WithError(err).Error("Failed to save twc ip to database")
+	if err := storage.SaveTWCIP(twc.IP()); err != nil {
+		log.WithError(err).Fatalln("Failed to save twc ip to database")
 	}
 
 	return &APIv1{
 		twc:     twc,
-		storage: db,
+		storage: storage,
 	}, nil
 }
 
@@ -78,6 +86,10 @@ func (api *APIv1) Vitals(c fiber.Ctx) error {
 	if err != nil {
 		log.WithError(err).Error("Failed to get Tesla Wall Connector vitals")
 		c.Status(fiber.StatusInternalServerError).SendString("Failed to get vitals")
+	}
+
+	if err := api.storage.RecordVital(api.twc.IP(), vitals); err != nil {
+		log.WithError(err).Warnf("Failed to record vital")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(vitals)
@@ -150,6 +162,15 @@ func (api *APIv1) Find(c fiber.Ctx) error {
 	})
 }
 
+func (api *APIv1) Query(c fiber.Ctx) error {
+	startTime := time.Now().Add(-(time.Minute * 1))
+	vitals, err := api.storage.QueryVitals(startTime)
+	if err != nil {
+		log.WithError(err).Errorf("Failed to query vitals for range %s", startTime)
+	}
+	return c.Status(fiber.StatusOK).JSON(vitals)
+}
+
 var (
 	//go:embed web/build/index.html
 	f embed.FS
@@ -157,6 +178,28 @@ var (
 	//go:embed web/build/static
 	staticDir embed.FS
 )
+
+func pollVitals(twc *twc.TWC, storage *storage.DB) {
+	log.Debugf("poll vitals started for twc %s", twc.IP())
+	const duration = time.Second * 1
+	for {
+		log.Debugf("Checking twc vitals in %s", duration.String())
+		time.Sleep(duration)
+
+		log.Debugf("Get vitals for %s", twc.IP())
+		vital, err := twc.GetVitals()
+		if err != nil {
+			log.WithError(err).Error("Failed to get vitals")
+			continue
+		}
+		log.Debugf("Got vitals for %s", twc.IP())
+		if err := storage.RecordVital(twc.IP(), vital); err != nil {
+			log.WithError(err).Error("Failed saving vital record to storage")
+		}
+
+		log.Debugf("Saved vitals for %s to storage", twc.IP())
+	}
+}
 
 func main() {
 	log.SetLevel(log.DebugLevel)
@@ -189,6 +232,10 @@ func main() {
 		log.WithError(err).Fatal("Error creating API v1")
 	}
 
+	log.Infof("TWC connected: %s", apiv1.twc.IP())
+
+	go pollVitals(apiv1.twc, apiv1.storage)
+
 	v1.Use(apiv1.TWCConnectedMiddleware)
 
 	v1.Get("/wifi_status", apiv1.WifiStatus)
@@ -196,6 +243,7 @@ func main() {
 	v1.Get("/lifetime", apiv1.Lifetime)
 	v1.Get("/info", apiv1.Info)
 	v1.Get("/find", apiv1.Find)
+	v1.Get("/query", apiv1.Query)
 
 	log.Fatal(app.Listen(":8080"))
 }

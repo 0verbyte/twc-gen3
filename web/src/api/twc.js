@@ -49,6 +49,13 @@ var TWC = {
     }
     return request("/api/v1/find");
   },
+
+  query: async () => {
+    if (debug) {
+      console.log("API: query()");
+    }
+    return request("/api/v1/query");
+  },
 };
 
 export default TWC;

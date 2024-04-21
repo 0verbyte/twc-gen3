@@ -25,7 +25,7 @@ func (twc *TWC) IP() string {
 }
 
 // GetVitals returns the vitals from the TWC
-func (twc *TWC) GetVitals() (*Vitals, error) {
+func (twc *TWC) GetVitals() (*Vital, error) {
 	return getVitals(twc.ip)
 }
 
@@ -132,7 +132,7 @@ func getLocalCIDR() (*net.IPNet, error) {
 	return nil, errors.New("unable to locate local private IP")
 }
 
-func getVitals(ip string) (*Vitals, error) {
+func getVitals(ip string) (*Vital, error) {
 	resp, err := http.Get(fmt.Sprintf("http://%s/api/1/vitals", ip))
 	if err != nil {
 		return nil, err
@@ -147,7 +147,7 @@ func getVitals(ip string) (*Vitals, error) {
 		return nil, err
 	}
 
-	var vitals *Vitals
+	var vitals *Vital
 	if err := json.Unmarshal(data, &vitals); err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import WifiStatus from "./components/WifiStatus";
 import VehicleStatus from "./components/VehicleStatus";
 
 import API from "./api/twc.js";
+import VitalsChart from "./components/VitalsChart.js";
 
 function App() {
   const [isConnected, setConnected] = useState(false);
@@ -61,8 +62,13 @@ function App() {
         <Grid item xs={6}>
           {isConnected && <WifiStatus></WifiStatus>}
         </Grid>
+
         <Grid item xs={6}>
           {isConnected && <VehicleStatus></VehicleStatus>}
+        </Grid>
+
+        <Grid item xs={12}>
+          {isConnected && <VitalsChart></VitalsChart>}
         </Grid>
       </Grid>
     </div>
