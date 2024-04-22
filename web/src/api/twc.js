@@ -50,11 +50,11 @@ var TWC = {
     return request("/api/v1/find");
   },
 
-  query: async () => {
+  query: async (duration) => {
     if (debug) {
       console.log("API: query()");
     }
-    return request("/api/v1/query");
+    return request(`/api/v1/query?duration=${duration}`);
   },
 };
 

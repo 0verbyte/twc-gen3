@@ -38,7 +38,7 @@ function App() {
 
   return (
     <div className="App">
-      <Grid container space={2}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         <Grid item xs={12}>
           <Alert severity="info">
             Tesla Wall Connector Gen 3 is only supported!

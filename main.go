@@ -163,11 +163,29 @@ func (api *APIv1) Find(c fiber.Ctx) error {
 }
 
 func (api *APIv1) Query(c fiber.Ctx) error {
-	startTime := time.Now().Add(-(time.Minute * 1))
+	queryDuration := c.Query("duration")
+	durationString := "15m"
+	if queryDuration != "" {
+		durationString = queryDuration
+	}
+
+	duration, err := time.ParseDuration(durationString)
+	if err != nil {
+		log.WithError(err).Errorf("Failed to parse duration string %s", durationString)
+		return c.Status(fiber.StatusInternalServerError).JSON(map[string]string{
+			"error": "invalid duration " + queryDuration,
+		})
+	}
+
+	startTime := time.Now().Add(-(duration))
 	vitals, err := api.storage.QueryVitals(startTime)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to query vitals for range %s", startTime)
+		return c.Status(fiber.StatusInternalServerError).JSON(map[string]string{
+			"error": "query vitals failed",
+		})
 	}
+
 	return c.Status(fiber.StatusOK).JSON(vitals)
 }
 
