@@ -1,6 +1,7 @@
 # TWC Gen 3
 
 Simple monitoring server for the Tesla Wall Connector Gen 3
+![twc-gen3](https://github.com/0verbyte/twc-gen3/assets/1903318/5639f78c-1556-46a8-8299-e283dc0cd470)
 
 # Features
 
