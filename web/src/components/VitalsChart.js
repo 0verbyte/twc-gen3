@@ -47,7 +47,7 @@ const options = {
   },
 };
 
-const defaultVital = "vehicle_current_a";
+const defaultVital = "grid_v";
 const defaultDuration = "15m";
 
 const vitalKeyValueMap = {
